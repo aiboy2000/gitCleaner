@@ -23,9 +23,10 @@
 </head>
 <body>
     <div class="container">
-        <a href="{{ url_for('index', repo_url=repo_url) }}" class="back-link">&laquo; Back to Commits</a>
+        <a href="{{ url_for('commits_for_branch', repo_url=repo_url, branch_name=branch_name, _method='POST') if branch_name else url_for('index', repo_url=repo_url) }}" class="back-link">&laquo; Back to Commit List</a>
         <h1>Files in Commit: {{ commit_sha[:7] }}</h1>
         <p>Repository: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>
+        {% if branch_name %}<p>Branch: {{ branch_name }}</p>{% endif %}
 
         {% if error %}
             <p class="error">{{ error }}</p>
@@ -37,6 +38,7 @@
             <form method="POST" action="{{ url_for('process_files') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
                 <input type="hidden" name="commit_sha" value="{{ commit_sha }}">
+                <input type="hidden" name="branch_name" value="{{ branch_name }}"> {# Pass branch name along #}
                 <ul>
                     {% for file in files %}
                     <li>

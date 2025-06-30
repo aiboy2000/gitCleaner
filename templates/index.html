@@ -21,25 +21,43 @@
 <body>
     <div class="container">
         <h1>GitHub Commit Cleaner</h1>
-        <form method="POST">
+        <form method="POST" action="{{ url_for('index') }}">
             <label for="repo_url">GitHub Repository URL:</label>
             <input type="url" id="repo_url" name="repo_url" required placeholder="e.g., https://github.com/user/repo" value="{{ repo_url if repo_url }}">
-            <input type="submit" value="Fetch Commits">
+            <input type="submit" name="fetch_branches" value="Fetch Branches">
         </form>
 
         {% if error %}
             <p class="error">{{ error }}</p>
         {% endif %}
 
+        {% if branches %}
+        <div class="results-section">
+            <h2>Select a Branch:</h2>
+            <form method="POST" action="{{ url_for('commits_for_branch') }}">
+                <input type="hidden" name="repo_url" value="{{ repo_url }}">
+                <label for="branch_name">Branch:</label>
+                <select name="branch_name" id="branch_name" required>
+                    <option value="">-- Select a Branch --</option>
+                    {% for branch in branches %}
+                        <option value="{{ branch.name }}">{{ branch.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="submit" value="List Commits for Branch">
+            </form>
+        </div>
+        {% endif %}
+
         {% if commits %}
         <div class="results-section">
-            <h2>Commits (Latest 30)</h2>
+            <h2>Commits for branch '{{ selected_branch_name }}' (Latest 30)</h2>
             <form method="POST" action="{{ url_for('select_commit') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
+                <input type="hidden" name="branch_name" value="{{ selected_branch_name }}"> {# Pass branch name along #}
                 <ul>
                     {% for commit in commits %}
                     <li>
-                        <input type="radio" name="commit_sha" value="{{ commit.sha }}" id="commit_{{ loop.index }}">
+                        <input type="radio" name="commit_sha" value="{{ commit.sha }}" id="commit_{{ loop.index }}" {% if loop.first %}checked{% endif %}>
                         <label for="commit_{{ loop.index }}">
                             <strong>{{ commit.message }}</strong> ({{ commit.sha[:7] }})<br>
                             <small>Author: {{ commit.author }} | Date: {{ commit.date }}</small>
