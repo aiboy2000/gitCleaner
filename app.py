@@ -372,14 +372,51 @@ def process_files():
                                branch_name=branch_name,
                                pat=pat)
 
-    gitignore_entries = []
+    # Refined .gitignore entries generation
+    gitignore_rules = set()
     if selected_files:
+        # This list will store tuples of (compiled_regex, gitignore_rule_to_add, is_dir_pattern)
+        # We need a clear gitignore rule string for each directory pattern.
+        # Let's define this mapping more clearly or extract it better.
+        # For now, let's manually define the primary directory rules we want to consolidate.
+        # (Pattern to match file, Actual gitignore rule, is_dir)
+        # This is a simplified approach. A more scalable way would be to add this 'gitignore_rule' to UNNECESSARY_FILE_PATTERNS
+        DIR_SPECIFIC_GITIGNORE_RULES = {
+            r"(^|/)node_modules/": "node_modules/",
+            r"(^|/)\.yarn/": ".yarn/",
+            r"(^|/)build/": "build/",
+            r"(^|/)dist/": "dist/",
+            r"(^|/)target/": "target/",
+            r"(^|/)__pycache__/": "__pycache__/",
+            # Add other key directory patterns here that you want to consolidate
+        }
+
         for file_path in selected_files:
-            gitignore_entries.append(file_path)
-            if '.' in file_path:
-                ext = file_path.split('.')[-1]
-                if ext and not f"*.{ext}" in gitignore_entries:
-                    gitignore_entries.append(f"*.{ext}")
+            matched_by_dir_rule = False
+            for dir_pattern_regex, gitignore_dir_rule in DIR_SPECIFIC_GITIGNORE_RULES.items():
+                if re.search(dir_pattern_regex, file_path):
+                    gitignore_rules.add(gitignore_dir_rule)
+                    matched_by_dir_rule = True
+                    break # File is covered by a general directory rule
+
+            if not matched_by_dir_rule:
+                # If not covered by a general directory rule, consider the original file-specific heuristics
+                is_suggested, reason = suggest_files_to_ignore(file_path, []) # Re-check original suggestion logic if needed
+                                                                              # to decide on specific file or wildcard.
+                                                                              # This could be simpler: just add the file path.
+
+                # For files not covered by broad directory rules, add the specific path.
+                # Optionally, add specific common wildcard extensions if they were the reason for suggestion.
+                # This logic can become complex. Let's start with: if not a dir rule, add the path.
+                gitignore_rules.add(file_path)
+
+                # Add common wildcard for specific ignorable file types if not covered by a dir rule
+                if not matched_by_dir_rule:
+                    if file_path.endswith((".log", ".tmp", ".temp", ".bak", ".o", ".obj", ".class", ".pyc", ".swp", ".swo")):
+                        gitignore_rules.add(f"*{file_path[file_path.rfind('.'):]}")
+
+
+    gitignore_entries = sorted(list(gitignore_rules))
 
     cleanup_command = ""
     if selected_files:
