@@ -204,7 +204,51 @@ def commits_for_branch():
     except Exception as e:
         error = f"An unexpected error occurred: {e}"
 
-    return render_template('index.html', repo_url=repo_url, selected_branch_name=branch_name, commits=commits, error=error, pat=pat)
+    # To keep the branch selection form populated, we need to fetch branches again or pass them.
+    # For simplicity, let's assume if we are showing commits, branches were already fetched and are available
+    # in the context that called this, or we re-fetch them.
+    # However, commits_for_branch is called via POST from the branch selection form.
+    # The 'branches' list used to populate that form isn't directly available here unless we re-fetch or pass it.
+    # The simplest way for this structure is to re-fetch branches if we need them displayed alongside commits.
+    # Let's try to pass 'branches' from the initial fetch if possible, or re-fetch.
+    # For now, the template change handles showing the selector; this route focuses on commits.
+    # The `index` route will handle providing `branches` for the initial display and re-display.
+    # When commits_for_branch is called, it will render index.html. We need to ensure 'branches' is also passed then.
+
+    # Re-fetch branches to display the dropdown again alongside commits
+    # This is not ideal for performance but simplest for state management here.
+    # A better way might be to store branches in session or pass them through hidden fields if substantial.
+    fetched_branches = []
+    if repo_url: # Only try to fetch if repo_url is present
+        try:
+            parts_b = repo_url.strip('/').split('/')
+            user_b, repo_b = parts_b[-2], parts_b[-1]
+            api_url_b = f"https://api.github.com/repos/{user_b}/{repo_b}/branches"
+            headers_b = {'Accept': 'application/vnd.github.v3+json'}
+            if pat:
+                headers_b['Authorization'] = f'token {pat}'
+            response_b = requests.get(api_url_b, headers=headers_b)
+            response_b.raise_for_status() # Important to handle errors for this fetch too
+            for branch_data in response_b.json():
+                fetched_branches.append({
+                    'name': branch_data['name'],
+                    'sha': branch_data['commit']['sha']
+                })
+        except Exception as e_b:
+            # If fetching branches again fails, we might lose the dropdown.
+            # Log this error, but don't let it necessarily overwrite the primary error of fetching commits.
+            print(f"Secondary error fetching branches in commits_for_branch: {e_b}")
+            if not error: # If no primary error yet, this can become the error
+                 error = "Could not re-fetch branches to display selector. Commit list may be accurate."
+
+
+    return render_template('index.html',
+                           repo_url=repo_url,
+                           selected_branch_name=branch_name,
+                           commits=commits,
+                           branches=fetched_branches, # Pass fetched branches
+                           error=error,
+                           pat=pat)
 
 
 @app.route('/select_commit', methods=['GET', 'POST'])

@@ -39,7 +39,7 @@
         {% endif %}
 
         {% if branches %}
-        <div class="results-section">
+        <div class="results-section" id="branch-selection-section">
             <h2>Select a Branch:</h2>
             <form method="POST" action="{{ url_for('commits_for_branch') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
@@ -48,7 +48,7 @@
                 <select name="branch_name" id="branch_name" required>
                     <option value="">-- Select a Branch --</option>
                     {% for branch in branches %}
-                        <option value="{{ branch.name }}">{{ branch.name }}</option>
+                        <option value="{{ branch.name }}" {% if branch.name == selected_branch_name %}selected{% endif %}>{{ branch.name }}</option>
                     {% endfor %}
                 </select>
                 <input type="submit" value="List Commits for Branch">
@@ -57,7 +57,7 @@
         {% endif %}
 
         {% if commits %}
-        <div class="results-section">
+        <div class="results-section" id="commit-list-section">
             <h2>Commits for branch '{{ selected_branch_name }}' (Latest 30)</h2>
             <form method="POST" action="{{ url_for('select_commit') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
