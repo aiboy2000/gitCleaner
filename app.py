@@ -1,7 +1,97 @@
 from flask import Flask, render_template, request
 import requests
+import re # For regex matching of file patterns
 
 app = Flask(__name__)
+
+# Define heuristics for identifying unnecessary files
+# List of (regex_pattern, reason_string, is_dir_pattern)
+# is_dir_pattern helps to match if the path IS a directory or STARTS WITH a directory name
+UNNECESSARY_FILE_PATTERNS = [
+    (r"\.log$", "Log file", False),
+    (r"\.tmp$", "Temporary file", False),
+    (r"\.temp$", "Temporary file", False),
+    (r"\.bak$", "Backup file", False),
+    (r"\.swp$", "Swap file", False),
+    (r"\.swo$", "Swap file", False),
+    (r"~$", "Backup file (tilde)", False), # Files ending with ~
+    (r"\.DS_Store$", "macOS specific metadata file", False),
+    (r"Thumbs\.db$", "Windows specific metadata file", False),
+    (r"\.cache$", "Cache file", False),
+    (r"\.coverage$", "Code coverage data", False),
+
+    # Compiled files
+    (r"\.o$", "Compiled object file", False),
+    (r"\.obj$", "Compiled object file", False),
+    (r"\.class$", "Java compiled class file", False),
+    (r"\.pyc$", "Python compiled bytecode file", False),
+    (r"\.dll$", "Dynamic Link Library (often build output)", False),
+    (r"\.so$", "Shared object file (often build output)", False),
+    (r"\.exe$", "Executable file (often build output)", False),
+    (r"\.out$", "Output file (often build/compiler output)", False),
+    (r"\.app$", "macOS Application bundle (often build output)", True),
+
+
+    # Build directories / Package manager directories
+    (r"^build/", "Build output directory", True),
+    (r"^dist/", "Distribution directory", True),
+    (r"^target/", "Build target directory (e.g., Java/Rust)", True),
+    (r"^bin/", "Binary output directory (heuristic)", True), # Can be source too, so user should check
+    (r"^obj/", "Object file directory (heuristic)", True), # Can be source too
+    (r"node_modules/", "Node.js dependencies directory", True),
+    (r"__pycache__/", "Python bytecode cache directory", True),
+    (r"\.idea/", "JetBrains IDE project files", True),
+    (r"\.vscode/", "VS Code editor project files", True),
+    (r"\.project$", "Eclipse project file", False),
+    (r"\.classpath$", "Eclipse classpath file", False),
+    (r"\.settings/", "Eclipse settings directory", True),
+    (r"venv/", "Python virtual environment directory", True),
+    (r"env/", "Python virtual environment directory", True),
+    (r"\.env$", "Environment configuration file (often local)", False), # .env files can sometimes contain secrets
+    (r"\.venv/", "Python virtual environment directory", True),
+    (r"^(.*\.egg-info)/", "Python egg info directory", True),
+
+    # Archives (less common to ignore all, but sometimes specific ones)
+    (r"\.zip$", "ZIP archive (check if build artifact)", False),
+    (r"\.tar\.gz$", "TGZ archive (check if build artifact)", False),
+    (r"\.tgz$", "TGZ archive (check if build artifact)", False),
+    (r"\.jar$", "Java archive (check if build artifact or dependency)", False),
+    (r"\.war$", "Java web archive (check if build artifact)", False),
+
+    # IDE specific / OS specific
+    (r"desktop\.ini$", "Windows desktop configuration file", False),
+    (r"\.Trash/", "Trash directory", True),
+    (r"\.Spotlight-V100/", "macOS Spotlight index", True),
+    (r"\.fseventsd/", "macOS file system events log", True),
+]
+
+def suggest_files_to_ignore(filename_with_path, file_infos):
+    """
+    Analyzes a file path and suggests if it should be ignored.
+    Returns (is_suggested_to_ignore, suggestion_reason)
+    file_infos can be used if we need to know if a path is a directory (not directly available from commit files list)
+    For now, we rely on patterns that include directory markers like trailing slashes or specific names.
+    """
+    for pattern, reason, is_dir_pattern in UNNECESSARY_FILE_PATTERNS:
+        # If it's a directory pattern, we check if the filename_with_path starts with it
+        # or exactly matches if the pattern doesn't have a trailing slash implicit in its nature (like node_modules/)
+        if is_dir_pattern:
+            # Ensure pattern for dir check ends with / if it's a prefix, or is an exact match for dir name
+            # e.g. pattern "node_modules/" should match "node_modules/file.js"
+            # pattern "build" should match "build/" (if we assume build is always a dir)
+            # This logic can be tricky without knowing if `filename_with_path` is a dir itself.
+            # For now, simple prefix matching for dir patterns.
+            if pattern.endswith('/'): # e.g. "node_modules/"
+                if filename_with_path.startswith(pattern):
+                    return True, reason
+            else: # e.g. pattern r"^build/" or r"\.idea/"
+                 if re.search(pattern, filename_with_path): # Using re.search for patterns like r"^build/"
+                    return True, reason
+        else: # It's a file pattern
+            if re.search(pattern, filename_with_path):
+                return True, reason
+    return False, ""
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -127,28 +217,32 @@ def select_commit():
 
         if 'files' in commit_data:
             for file_info in commit_data['files']:
+                is_suggested, reason = suggest_files_to_ignore(file_info['filename'], commit_data['files'])
                 files.append({
                     'filename': file_info['filename'],
-                    'status': file_info['status'], # e.g., 'added', 'modified', 'removed'
-                    # We might not get raw_url directly here for all files easily,
-                    # but filename is the primary need for .gitignore
+                    'status': file_info['status'],
+                    'is_suggested_to_ignore': is_suggested,
+                    'suggestion_reason': reason
                 })
-        else:
-            # If 'files' is not in commit_data, it might be an older commit or an issue with the API response
-            # Fallback: try to get the tree for this commit
+        else: # Fallback for commits where 'files' might not be directly available (e.g. very old commits or merge commits without file changes listed directly)
             tree_sha = commit_data['commit']['tree']['sha']
             tree_api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/{tree_sha}?recursive=1"
             tree_response = requests.get(tree_api_url)
             tree_response.raise_for_status()
             tree_data = tree_response.json()
             if 'tree' in tree_data:
+                # Note: tree_data['tree'] might contain directories as well.
+                # suggest_files_to_ignore needs to handle this.
+                # The 'status' isn't available here, defaults to 'unknown'.
                 for item in tree_data['tree']:
-                    if item['type'] == 'blob': # We are interested in files (blobs)
+                    if item['type'] == 'blob': # Only process files (blobs)
+                        is_suggested, reason = suggest_files_to_ignore(item['path'], tree_data['tree'])
                         files.append({
                             'filename': item['path'],
-                            'status': 'unknown' # Status isn't directly available from tree view like this
+                            'status': 'unknown',
+                            'is_suggested_to_ignore': is_suggested,
+                            'suggestion_reason': reason
                         })
-
     except ValueError as ve:
         error = str(ve)
     except requests.exceptions.RequestException as e:

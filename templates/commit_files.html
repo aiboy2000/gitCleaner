@@ -17,6 +17,7 @@
         li { background-color: #eee; padding: 10px; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
         .file-info { flex-grow: 1; }
         .file-status { font-style: italic; color: #555; font-size: 0.9em; margin-left: 10px; }
+        .suggestion-reason { color: #007bff; font-size: 0.85em; margin-left: 5px; cursor: help; }
         .back-link { margin-bottom: 20px; display: inline-block; }
         .form-group { margin-bottom: 15px; }
     </style>
@@ -43,15 +44,18 @@
                     {% for file in files %}
                     <li>
                         <div class="file-info">
-                            <input type="checkbox" name="selected_files" value="{{ file.filename }}" id="file_{{ loop.index }}">
+                            <input type="checkbox" name="selected_files" value="{{ file.filename }}" id="file_{{ loop.index }}" {% if file.is_suggested_to_ignore %}checked{% endif %}>
                             <label for="file_{{ loop.index }}">{{ file.filename }}</label>
+                            {% if file.is_suggested_to_ignore and file.suggestion_reason %}
+                                <small class="suggestion-reason" title="{{ file.suggestion_reason }}"> (Suggestion: {{ file.suggestion_reason }})</small>
+                            {% endif %}
                         </div>
                         <span class="file-status">({{ file.status }})</span>
                     </li>
                     {% endfor %}
                 </ul>
                 <div style="margin-top: 20px;">
-                    <input type="submit" value="Process Selected Files">
+                    <input type="submit" value="Generate .gitignore & Commands for Selected Files">
                 </div>
             </form>
         </div>
