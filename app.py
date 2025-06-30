@@ -141,17 +141,22 @@ def index():
     return render_template('index.html', error=error, repo_url=repo_url, branches=branches)
 
 
-@app.route('/commits_for_branch', methods=['POST'])
+@app.route('/commits_for_branch', methods=['GET', 'POST'])
 def commits_for_branch():
-    repo_url = request.form.get('repo_url')
-    branch_name = request.form.get('branch_name')
+    if request.method == 'POST':
+        repo_url = request.form.get('repo_url')
+        branch_name = request.form.get('branch_name')
+    else: # GET request
+        repo_url = request.args.get('repo_url')
+        branch_name = request.args.get('branch_name')
+
     commits = []
     error = None
 
     if not repo_url or not branch_name:
         error = "Repository URL and branch name are required."
-        # Redirect or render with error, potentially back to index or a specific error page
-        return render_template('index.html', error=error, repo_url=repo_url) # Simplified error handling
+        # For GET, if params are missing, it might be better to redirect to index or show a clear error.
+        return render_template('index.html', error=error, repo_url=repo_url, branches=[]) # Ensure branches is passed if index expects it
 
     try:
         parts = repo_url.strip('/').split('/')
