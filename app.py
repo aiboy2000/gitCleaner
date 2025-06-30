@@ -33,25 +33,28 @@ UNNECESSARY_FILE_PATTERNS = [
 
 
     # Build directories / Package manager directories
-    (r"^build/", "Build output directory", True),
-    (r"^dist/", "Distribution directory", True),
-    (r"^target/", "Build target directory (e.g., Java/Rust)", True),
-    (r"^bin/", "Binary output directory (heuristic)", True), # Can be source too, so user should check
-    (r"^obj/", "Object file directory (heuristic)", True), # Can be source too
-    (r"node_modules/", "Node.js dependencies directory", True),
-    (r"__pycache__/", "Python bytecode cache directory", True),
-    (r"\.idea/", "JetBrains IDE project files", True),
-    (r"\.vscode/", "VS Code editor project files", True),
-    (r"\.project$", "Eclipse project file", False),
-    (r"\.classpath$", "Eclipse classpath file", False),
-    (r"\.settings/", "Eclipse settings directory", True),
-    (r"venv/", "Python virtual environment directory", True),
-    (r"env/", "Python virtual environment directory", True),
-    (r"\.env$", "Environment configuration file (often local)", False), # .env files can sometimes contain secrets
-    (r"\.venv/", "Python virtual environment directory", True),
-    (r"^(.*\.egg-info)/", "Python egg info directory", True),
+    # For directory patterns, use (^|/) to match if it's at the start of path or preceded by /
+    # and / at the end to signify it's a directory.
+    (r"(^|/)build/", "Build output directory", True),
+    (r"(^|/)dist/", "Distribution directory", True),
+    (r"(^|/)target/", "Build target directory (e.g., Java/Rust)", True),
+    (r"(^|/)bin/", "Binary output directory (heuristic)", True),
+    (r"(^|/)obj/", "Object file directory (heuristic)", True),
+    (r"(^|/)node_modules/", "Node.js dependencies directory", True),
+    (r"(^|/)\.yarn/", "Yarn PnP directory/cache", True),
+    (r"(^|/)__pycache__/", "Python bytecode cache directory", True),
+    (r"(^|/)\.idea/", "JetBrains IDE project files", True),
+    (r"(^|/)\.vscode/", "VS Code editor project files", True),
+    (r"\.project$", "Eclipse project file", False), # File specific
+    (r"\.classpath$", "Eclipse classpath file", False), # File specific
+    (r"(^|/)\.settings/", "Eclipse settings directory", True),
+    (r"(^|/)venv/", "Python virtual environment directory", True),
+    (r"(^|/)env/", "Python virtual environment directory", True),
+    (r"\.env$", "Environment configuration file (often local)", False), # File specific, .env
+    (r"(^|/)\.venv/", "Python virtual environment directory", True),
+    (r"(^|/)(.*\.egg-info)/", "Python egg info directory", True), # Matches a directory ending in .egg-info
 
-    # Archives (less common to ignore all, but sometimes specific ones)
+    # Archives (less common to ignore all, but sometimes specific ones) - these are file patterns
     (r"\.zip$", "ZIP archive (check if build artifact)", False),
     (r"\.tar\.gz$", "TGZ archive (check if build artifact)", False),
     (r"\.tgz$", "TGZ archive (check if build artifact)", False),
@@ -59,10 +62,10 @@ UNNECESSARY_FILE_PATTERNS = [
     (r"\.war$", "Java web archive (check if build artifact)", False),
 
     # IDE specific / OS specific
-    (r"desktop\.ini$", "Windows desktop configuration file", False),
-    (r"\.Trash/", "Trash directory", True),
-    (r"\.Spotlight-V100/", "macOS Spotlight index", True),
-    (r"\.fseventsd/", "macOS file system events log", True),
+    (r"desktop\.ini$", "Windows desktop configuration file", False), # File specific
+    (r"(^|/)\.Trash/", "Trash directory", True),
+    (r"(^|/)\.Spotlight-V100/", "macOS Spotlight index", True),
+    (r"(^|/)\.fseventsd/", "macOS file system events log", True),
 ]
 
 def suggest_files_to_ignore(filename_with_path, file_infos):
@@ -72,24 +75,24 @@ def suggest_files_to_ignore(filename_with_path, file_infos):
     file_infos can be used if we need to know if a path is a directory (not directly available from commit files list)
     For now, we rely on patterns that include directory markers like trailing slashes or specific names.
     """
-    for pattern, reason, is_dir_pattern in UNNECESSARY_FILE_PATTERNS:
-        # If it's a directory pattern, we check if the filename_with_path starts with it
-        # or exactly matches if the pattern doesn't have a trailing slash implicit in its nature (like node_modules/)
-        if is_dir_pattern:
-            # Ensure pattern for dir check ends with / if it's a prefix, or is an exact match for dir name
-            # e.g. pattern "node_modules/" should match "node_modules/file.js"
-            # pattern "build" should match "build/" (if we assume build is always a dir)
-            # This logic can be tricky without knowing if `filename_with_path` is a dir itself.
-            # For now, simple prefix matching for dir patterns.
-            if pattern.endswith('/'): # e.g. "node_modules/"
-                if filename_with_path.startswith(pattern):
-                    return True, reason
-            else: # e.g. pattern r"^build/" or r"\.idea/"
-                 if re.search(pattern, filename_with_path): # Using re.search for patterns like r"^build/"
-                    return True, reason
-        else: # It's a file pattern
-            if re.search(pattern, filename_with_path):
-                return True, reason
+    for pattern_str, reason, is_dir_pattern in UNNECESSARY_FILE_PATTERNS:
+        # For directory patterns, we want to match if the path contains that directory component.
+        # Example: pattern_str "node_modules/" should match "path/to/node_modules/file.js"
+        # Example: pattern_str ".yarn/" should match ".yarn/cache/file.zip" or "project/.yarn/patch.js"
+        # We compile the pattern string to a regex object for matching.
+        try:
+            # Ensure directory patterns correctly match directory structures.
+            # A common way is to check if the path contains `(^|/)pattern_as_dir_name($|/)`.
+            # The patterns in UNNECESSARY_FILE_PATTERNS are already designed with this in mind (e.g. r"(^|/)node_modules/")
+            regex = re.compile(pattern_str)
+        except re.error as e:
+            # Handle invalid regex patterns if any, though they should be pre-validated
+            print(f"Warning: Invalid regex pattern '{pattern_str}': {e}")
+            continue
+
+        if regex.search(filename_with_path):
+            return True, reason
+
     return False, ""
 
 
