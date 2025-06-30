@@ -417,50 +417,86 @@ def process_files():
                                pat=pat)
 
     # Refined .gitignore entries generation
-    gitignore_rules = set()
+    from collections import defaultdict
+    final_rules = set()
+    rule_examples = defaultdict(list)
+
+    # Define these directly for clarity in this logic block
+    # These are the .gitignore rules we'd prefer for certain directories
+    # (regex_to_match_filepath, actual_gitignore_rule_for_dir)
+    CONSOLIDATED_DIR_RULES_MAP = {
+        r"(^|/)node_modules/": "node_modules/",
+        r"(^|/)\.yarn/": ".yarn/",
+        r"(^|/)build/": "build/",
+        r"(^|/)dist/": "dist/",
+        r"(^|/)target/": "target/",
+        r"(^|/)__pycache__/": "__pycache__/",
+        r"(^|/)\.idea/": ".idea/",
+        r"(^|/)\.vscode/": ".vscode/", # Note: .vscode/launch.json is often committed, but settings.json might be ignored.
+                                     # For now, if anything in .vscode is selected, suggest ignoring the whole dir.
+        r"(^|/)\.settings/": ".settings/",
+        r"(^|/)venv/": "venv/",
+        r"(^|/)env/": "env/",
+        r"(^|/)\.venv/": ".venv/",
+        r"(^|/)(.*\.egg-info)/": "*.egg-info/", # More general rule for .egg-info
+    }
+
+    # Define common wildcardable extensions
+    COMMON_WILDCARD_EXTENSIONS = {".log", ".tmp", ".temp", ".bak", ".o", ".obj", ".class", ".pyc", ".swp", ".swo", ".cache", ".coverage"}
+
+
     if selected_files:
-        # This list will store tuples of (compiled_regex, gitignore_rule_to_add, is_dir_pattern)
-        # We need a clear gitignore rule string for each directory pattern.
-        # Let's define this mapping more clearly or extract it better.
-        # For now, let's manually define the primary directory rules we want to consolidate.
-        # (Pattern to match file, Actual gitignore rule, is_dir)
-        # This is a simplified approach. A more scalable way would be to add this 'gitignore_rule' to UNNECESSARY_FILE_PATTERNS
-        DIR_SPECIFIC_GITIGNORE_RULES = {
-            r"(^|/)node_modules/": "node_modules/",
-            r"(^|/)\.yarn/": ".yarn/",
-            r"(^|/)build/": "build/",
-            r"(^|/)dist/": "dist/",
-            r"(^|/)target/": "target/",
-            r"(^|/)__pycache__/": "__pycache__/",
-            # Add other key directory patterns here that you want to consolidate
-        }
-
         for file_path in selected_files:
-            matched_by_dir_rule = False
-            for dir_pattern_regex, gitignore_dir_rule in DIR_SPECIFIC_GITIGNORE_RULES.items():
-                if re.search(dir_pattern_regex, file_path):
-                    gitignore_rules.add(gitignore_dir_rule)
-                    matched_by_dir_rule = True
-                    break # File is covered by a general directory rule
+            original_file_path_for_example = file_path # Keep original for comments
+            processed_for_this_file = False
 
-            if not matched_by_dir_rule:
-                # If not covered by a general directory rule, consider the original file-specific heuristics
-                is_suggested, reason = suggest_files_to_ignore(file_path, []) # Re-check original suggestion logic if needed
-                                                                              # to decide on specific file or wildcard.
-                                                                              # This could be simpler: just add the file path.
+            # 1. Check against General Directory Rules
+            for dir_regex, dir_rule in CONSOLIDATED_DIR_RULES_MAP.items():
+                if re.search(dir_regex, file_path):
+                    final_rules.add(dir_rule)
+                    rule_examples[dir_rule].append(original_file_path_for_example)
+                    processed_for_this_file = True
+                    break
+            if processed_for_this_file:
+                continue
 
-                # For files not covered by broad directory rules, add the specific path.
-                # Optionally, add specific common wildcard extensions if they were the reason for suggestion.
-                # This logic can become complex. Let's start with: if not a dir rule, add the path.
-                gitignore_rules.add(file_path)
+            # 2. Check for Common Wildcardable Extensions
+            file_extension = None
+            if '.' in file_path:
+                potential_ext = "." + file_path.split('.')[-1]
+                # Check against double extensions like .tar.gz
+                for double_ext_candidate in [".tar.gz", ".tar.bz2", ".tar.xz"]: # Add more if needed
+                    if file_path.endswith(double_ext_candidate):
+                        potential_ext = double_ext_candidate
+                        break
 
-                # Add common wildcard for specific ignorable file types if not covered by a dir rule
-                if not matched_by_dir_rule:
-                    if file_path.endswith((".log", ".tmp", ".temp", ".bak", ".o", ".obj", ".class", ".pyc", ".swp", ".swo")):
-                        gitignore_rules.add(f"*{file_path[file_path.rfind('.'):]}")
+                if potential_ext in COMMON_WILDCARD_EXTENSIONS:
+                    file_extension = potential_ext # e.g. ".log", ".bak"
 
+            if file_extension:
+                wildcard_rule = f"*{file_extension}" # e.g. "*.log"
+                final_rules.add(wildcard_rule)
+                rule_examples[wildcard_rule].append(original_file_path_for_example)
+                processed_for_this_file = True
+                continue
 
-    gitignore_entries = sorted(list(gitignore_rules))
+            # 3. If not covered by above, add the specific file path
+            if not processed_for_this_file:
+                final_rules.add(original_file_path_for_example)
+                # No examples needed if the rule is the file itself.
+
+    # Construct gitignore_entries list for the template
+    gitignore_entries = []
+    sorted_final_rules = sorted(list(final_rules))
+
+    for rule in sorted_final_rules:
+        gitignore_entries.append(rule)
+        if rule in rule_examples:
+            for example_file in sorted(list(set(rule_examples[rule]))): # Sort examples and ensure unique
+                # Only add example if it's different from the rule itself (for specific file rules)
+                # and if the rule isn't a direct match for the example (e.g. rule is file path itself)
+                if example_file != rule :
+                    gitignore_entries.append(f"# {example_file} (covered by {rule})")
 
     cleanup_command = ""
     if selected_files:
