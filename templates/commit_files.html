@@ -1,33 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Files in Commit - GitHub Commit Cleaner</title>
+    <title>コミット内のファイル - GitHubコミットクリーナー</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; text-align: center; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; }
-        input[type="submit"], button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; text-decoration: none; display: inline-block; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; margin: 20px; background-color: #f8f9fa; color: #212529; line-height: 1.6; }
+        .container { background-color: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 900px; margin: 30px auto; }
+        h1, h2 { color: #343a40; text-align: center; margin-bottom: 1.5em; }
+        h1 { font-size: 2em; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #dee2e6; padding-bottom: 0.5em; }
+        label { display: inline-block; margin-bottom: 0; font-weight: normal; color: #212529; } /* Adjusted for checkbox */
+        input[type="submit"], button { background-color: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; transition: background-color 0.2s ease-in-out; text-decoration: none; display: inline-block; }
         input[type="submit"]:hover, button:hover { background-color: #0056b3; }
-        .error { color: red; margin-bottom: 10px; }
-        .results-section { margin-top: 20px; }
+        .error { color: #dc3545; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 6px; margin-bottom: 20px; text-align: center; }
+        .results-section { margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; }
         ul { list-style-type: none; padding: 0; }
-        li { background-color: #eee; padding: 10px; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
-        .file-info { flex-grow: 1; }
-        .file-status { font-style: italic; color: #555; font-size: 0.9em; margin-left: 10px; }
-        .suggestion-reason { color: #007bff; font-size: 0.85em; margin-left: 5px; cursor: help; }
-        .back-link { margin-bottom: 20px; display: inline-block; }
-        .form-group { margin-bottom: 15px; }
+        li { background-color: #ffffff; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; transition: box-shadow 0.2s ease-in-out; }
+        li:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .file-info { flex-grow: 1; display: flex; align-items: center; }
+        .file-info input[type="checkbox"] { margin-right: 10px; width: auto; } /* Specific for checkbox */
+        .file-status { font-style: italic; color: #6c757d; font-size: 0.9em; margin-left: 10px; white-space: nowrap; }
+        .suggestion-reason { color: #17a2b8; font-size: 0.85em; margin-left: 8px; cursor: help; }
+        .back-link { margin-bottom: 25px; display: inline-block; color: #007bff; text-decoration: none; font-weight: bold; }
+        .back-link:hover { text-decoration: underline; }
+        .form-group { margin-bottom: 20px; }
+        .commit-info p { text-align: center; margin-bottom: 0.5em; color: #495057; }
+        .commit-info p strong { color: #343a40; }
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="{{ url_for('commits_for_branch', repo_url=repo_url, branch_name=branch_name, pat=pat) if branch_name else url_for('index', repo_url=repo_url, pat=pat) }}" class="back-link">&laquo; Back to Commit List</a>
-        <h1>Files in Commit: {{ commit_sha[:7] }}</h1>
-        <p>Repository: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>
-        {% if branch_name %}<p>Branch: {{ branch_name }}</p>{% endif %}
+        <a href="{{ url_for('commits_for_branch', repo_url=repo_url, branch_name=branch_name, pat=pat) if branch_name else url_for('index', repo_url=repo_url, pat=pat) }}" class="back-link">&laquo; コミット一覧に戻る</a>
+        <h1>コミット内のファイル: {{ commit_sha[:7] }}</h1>
+        <div class="commit-info">
+            <p>リポジトリ: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>
+            {% if branch_name %}<p>ブランチ: <strong>{{ branch_name }}</strong></p>{% endif %}
+        </div>
 
         {% if error %}
             <p class="error">{{ error }}</p>
@@ -35,7 +47,7 @@
 
         {% if files %}
         <div class="results-section">
-            <h2>Select files to generate .gitignore rules and cleanup commands:</h2>
+            <h2>.gitignoreルールとクリーンアップコマンドを生成するファイルを選択:</h2>
             <form method="POST" action="{{ url_for('process_files') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
                 <input type="hidden" name="commit_sha" value="{{ commit_sha }}">
@@ -48,20 +60,20 @@
                             <input type="checkbox" name="selected_files" value="{{ file.filename }}" id="file_{{ loop.index }}" {% if file.is_suggested_to_ignore %}checked{% endif %}>
                             <label for="file_{{ loop.index }}">{{ file.filename }}</label>
                             {% if file.is_suggested_to_ignore and file.suggestion_reason %}
-                                <small class="suggestion-reason" title="{{ file.suggestion_reason }}"> (Suggestion: {{ file.suggestion_reason }})</small>
+                                <small class="suggestion-reason" title="{{ file.suggestion_reason }}"> (提案: {{ file.suggestion_reason }})</small>
                             {% endif %}
                         </div>
                         <span class="file-status">({{ file.status }})</span>
                     </li>
                     {% endfor %}
                 </ul>
-                <div style="margin-top: 20px;">
-                    <input type="submit" value="Generate .gitignore & Commands for Selected Files">
+                <div style="margin-top: 20px; text-align: center;">
+                    <input type="submit" value="選択したファイルの.gitignoreルールとコマンドを生成">
                 </div>
             </form>
         </div>
         {% elif not error %}
-        <p>No files found in this commit, or the commit structure is unusual.</p>
+        <p style="text-align:center; margin-top:20px;">このコミットにはファイルが見つからないか、コミットの構造が通常と異なります。</p>
         {% endif %}
     </div>
 </body>

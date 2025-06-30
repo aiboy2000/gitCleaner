@@ -4,68 +4,64 @@ import re # For regex matching of file patterns
 
 app = Flask(__name__)
 
-# Define heuristics for identifying unnecessary files
-# List of (regex_pattern, reason_string, is_dir_pattern)
-# is_dir_pattern helps to match if the path IS a directory or STARTS WITH a directory name
+# Define heuristics for identifying unnecessary files - Japanese Reasons
+# List of (regex_pattern, reason_string_jp, is_dir_pattern)
 UNNECESSARY_FILE_PATTERNS = [
-    (r"\.log$", "Log file", False),
-    (r"\.tmp$", "Temporary file", False),
-    (r"\.temp$", "Temporary file", False),
-    (r"\.bak$", "Backup file", False),
-    (r"\.swp$", "Swap file", False),
-    (r"\.swo$", "Swap file", False),
-    (r"~$", "Backup file (tilde)", False), # Files ending with ~
-    (r"\.DS_Store$", "macOS specific metadata file", False),
-    (r"Thumbs\.db$", "Windows specific metadata file", False),
-    (r"\.cache$", "Cache file", False),
-    (r"\.coverage$", "Code coverage data", False),
+    (r"\.log$", "ログファイル", False),
+    (r"\.tmp$", "一時ファイル", False),
+    (r"\.temp$", "一時ファイル", False),
+    (r"\.bak$", "バックアップファイル", False),
+    (r"\.swp$", "スワップファイル", False),
+    (r"\.swo$", "スワップファイル", False),
+    (r"~$", "バックアップファイル (チルダ)", False),
+    (r"\.DS_Store$", "macOS固有のメタデータファイル", False),
+    (r"Thumbs\.db$", "Windows固有のメタデータファイル", False),
+    (r"\.cache$", "キャッシュファイル", False),
+    (r"\.coverage$", "コードカバレッジデータ", False),
 
     # Compiled files
-    (r"\.o$", "Compiled object file", False),
-    (r"\.obj$", "Compiled object file", False),
-    (r"\.class$", "Java compiled class file", False),
-    (r"\.pyc$", "Python compiled bytecode file", False),
-    (r"\.dll$", "Dynamic Link Library (often build output)", False),
-    (r"\.so$", "Shared object file (often build output)", False),
-    (r"\.exe$", "Executable file (often build output)", False),
-    (r"\.out$", "Output file (often build/compiler output)", False),
-    (r"\.app$", "macOS Application bundle (often build output)", True),
-
+    (r"\.o$", "コンパイル済みオブジェクトファイル", False),
+    (r"\.obj$", "コンパイル済みオブジェクトファイル", False),
+    (r"\.class$", "Javaコンパイル済みクラスファイル", False),
+    (r"\.pyc$", "Pythonコンパイル済みバイトコードファイル", False),
+    (r"\.dll$", "ダイナミックリンクライブラリ (ビルド出力)", False),
+    (r"\.so$", "共有オブジェクトファイル (ビルド出力)", False),
+    (r"\.exe$", "実行可能ファイル (ビルド出力)", False),
+    (r"\.out$", "出力ファイル (ビルド/コンパイラ出力)", False),
+    (r"\.app$", "macOSアプリケーションバンドル (ビルド出力)", True),
 
     # Build directories / Package manager directories
-    # For directory patterns, use (^|/) to match if it's at the start of path or preceded by /
-    # and / at the end to signify it's a directory.
-    (r"(^|/)build/", "Build output directory", True),
-    (r"(^|/)dist/", "Distribution directory", True),
-    (r"(^|/)target/", "Build target directory (e.g., Java/Rust)", True),
-    (r"(^|/)bin/", "Binary output directory (heuristic)", True),
-    (r"(^|/)obj/", "Object file directory (heuristic)", True),
-    (r"(^|/)node_modules/", "Node.js dependencies directory", True),
-    (r"(^|/)\.yarn/", "Yarn PnP directory/cache", True),
-    (r"(^|/)__pycache__/", "Python bytecode cache directory", True),
-    (r"(^|/)\.idea/", "JetBrains IDE project files", True),
-    (r"(^|/)\.vscode/", "VS Code editor project files", True),
-    (r"\.project$", "Eclipse project file", False), # File specific
-    (r"\.classpath$", "Eclipse classpath file", False), # File specific
-    (r"(^|/)\.settings/", "Eclipse settings directory", True),
-    (r"(^|/)venv/", "Python virtual environment directory", True),
-    (r"(^|/)env/", "Python virtual environment directory", True),
-    (r"\.env$", "Environment configuration file (often local)", False), # File specific, .env
-    (r"(^|/)\.venv/", "Python virtual environment directory", True),
-    (r"(^|/)(.*\.egg-info)/", "Python egg info directory", True), # Matches a directory ending in .egg-info
+    (r"(^|/)build/", "ビルド出力ディレクトリ", True),
+    (r"(^|/)dist/", "配布用ディレクトリ", True),
+    (r"(^|/)target/", "ビルドターゲットディレクトリ (例: Java/Rust)", True),
+    (r"(^|/)bin/", "バイナリ出力ディレクトリ (ヒューリスティック)", True),
+    (r"(^|/)obj/", "オブジェクトファイルディレクトリ (ヒューリスティック)", True),
+    (r"(^|/)node_modules/", "Node.js 依存関係ディレクトリ", True),
+    (r"(^|/)\.yarn/", "Yarn PnP ディレクトリ/キャッシュ", True),
+    (r"(^|/)__pycache__/", "Python バイトコードキャッシュディレクトリ", True),
+    (r"(^|/)\.idea/", "JetBrains IDE プロジェクトファイル", True),
+    (r"(^|/)\.vscode/", "VS Code エディタプロジェクトファイル", True),
+    (r"\.project$", "Eclipse プロジェクトファイル", False),
+    (r"\.classpath$", "Eclipse クラスパスファイル", False),
+    (r"(^|/)\.settings/", "Eclipse 設定ディレクトリ", True),
+    (r"(^|/)venv/", "Python 仮想環境ディレクトリ", True),
+    (r"(^|/)env/", "Python 仮想環境ディレクトリ", True),
+    (r"\.env$", "環境設定ファイル (ローカル用)", False),
+    (r"(^|/)\.venv/", "Python 仮想環境ディレクトリ", True),
+    (r"(^|/)(.*\.egg-info)/", "Python egg情報ディレクトリ", True),
 
-    # Archives (less common to ignore all, but sometimes specific ones) - these are file patterns
-    (r"\.zip$", "ZIP archive (check if build artifact)", False),
-    (r"\.tar\.gz$", "TGZ archive (check if build artifact)", False),
-    (r"\.tgz$", "TGZ archive (check if build artifact)", False),
-    (r"\.jar$", "Java archive (check if build artifact or dependency)", False),
-    (r"\.war$", "Java web archive (check if build artifact)", False),
+    # Archives
+    (r"\.zip$", "ZIPアーカイブ (ビルド成果物か確認)", False),
+    (r"\.tar\.gz$", "TGZアーカイブ (ビルド成果物か確認)", False),
+    (r"\.tgz$", "TGZアーカイブ (ビルド成果物か確認)", False),
+    (r"\.jar$", "Javaアーカイブ (ビルド成果物/依存関係か確認)", False),
+    (r"\.war$", "Java Webアーカイブ (ビルド成果物か確認)", False),
 
     # IDE specific / OS specific
-    (r"desktop\.ini$", "Windows desktop configuration file", False), # File specific
-    (r"(^|/)\.Trash/", "Trash directory", True),
-    (r"(^|/)\.Spotlight-V100/", "macOS Spotlight index", True),
-    (r"(^|/)\.fseventsd/", "macOS file system events log", True),
+    (r"desktop\.ini$", "Windowsデスクトップ設定ファイル", False),
+    (r"(^|/)\.Trash/", "ゴミ箱ディレクトリ", True),
+    (r"(^|/)\.Spotlight-V100/", "macOS Spotlightインデックス", True),
+    (r"(^|/)\.fseventsd/", "macOSファイルシステムイベントログ", True),
 ]
 
 def suggest_files_to_ignore(filename_with_path, file_infos):
@@ -105,12 +101,12 @@ def index():
 
     if request.method == 'POST' and 'fetch_branches' in request.form:
         if not repo_url:
-            error = "Repository URL is required."
+            error = "リポジトリURLが必要です。"
         else:
             try:
                 parts = repo_url.strip('/').split('/')
                 if len(parts) < 2 or parts[-2] == '' or parts[-1] == '':
-                    raise ValueError("Invalid GitHub repository URL format.")
+                    raise ValueError("無効なGitHubリポジトリURL形式です。")
 
                 user, repo = parts[-2], parts[-1]
                 api_url = f"https://api.github.com/repos/{user}/{repo}/branches"
@@ -124,7 +120,7 @@ def index():
                 branches_data = response.json()
 
                 if not branches_data:
-                    error = "No branches found. Repository might be empty, URL invalid, or token lacks permissions for private repo."
+                    error = "ブランチが見つかりません。リポジトリが空であるか、URLが無効であるか、プライベートリポジトリのトークンに権限がない可能性があります。"
 
                 for branch_data in branches_data:
                     branches.append({
@@ -136,17 +132,17 @@ def index():
                 error = str(ve)
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    error = "Repository not found. Check URL. If private, ensure PAT is valid and has 'repo' scope."
+                    error = "リポジトリが見つかりません。URLを確認してください。プライベートの場合は、PATが有効で 'repo' スコープがあることを確認してください。"
                 elif e.response.status_code == 401:
-                    error = "Authentication failed. Provided PAT may be invalid or expired."
+                    error = "認証に失敗しました。提供されたPATが無効であるか、期限切れの可能性があります。"
                 elif e.response.status_code == 403:
-                     error = "Access forbidden. PAT may lack necessary permissions (e.g. 'repo' scope) or you've hit a rate limit."
+                     error = "アクセスが禁止されています。PATに必要な権限がない (例: 'repo' スコープ) か、レート制限に達した可能性があります。"
                 else:
-                    error = f"Error fetching branches ({e.response.status_code}): {e}"
+                    error = f"ブランチの取得中にエラーが発生しました ({e.response.status_code}): {e}"
             except requests.exceptions.RequestException as e:
-                error = f"Network error fetching branches: {e}"
+                error = f"ブランチ取得中のネットワークエラー: {e}"
             except Exception as e:
-                error = f"An unexpected error occurred: {e}"
+                error = f"予期せぬエラーが発生しました: {e}"
 
     return render_template('index.html', error=error, repo_url=repo_url, branches=branches, pat=pat)
 
@@ -167,7 +163,7 @@ def commits_for_branch():
     error = None
 
     if not repo_url or not branch_name:
-        error = "Repository URL and branch name are required."
+        error = "リポジトリURLとブランチ名が必要です。"
         return render_template('index.html', error=error, repo_url=repo_url, branches=[], pat=pat)
 
     try:
@@ -192,34 +188,20 @@ def commits_for_branch():
             })
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
-            error = f"Commits not found for branch '{branch_name}'. Check repo/branch. If private, ensure PAT is valid."
+            error = f"ブランチ '{branch_name}' のコミットが見つかりません。リポジトリ/ブランチを確認してください。プライベートの場合は、PATが有効であることを確認してください。"
         elif e.response.status_code == 401:
-            error = "Authentication failed for fetching commits. PAT may be invalid."
+            error = "コミット取得時の認証に失敗しました。PATが無効である可能性があります。"
         elif e.response.status_code == 403:
-            error = "Access forbidden for fetching commits. PAT may lack permissions or rate limit hit."
+            error = "コミット取得時のアクセスが禁止されています。PATに権限がないか、レート制限に達した可能性があります。"
         else:
-            error = f"Error fetching commits ({e.response.status_code}): {e}"
+            error = f"コミット取得エラー ({e.response.status_code}): {e}"
     except requests.exceptions.RequestException as e:
-        error = f"Network error fetching commits: {e}"
+        error = f"コミット取得時のネットワークエラー: {e}"
     except Exception as e:
-        error = f"An unexpected error occurred: {e}"
+        error = f"予期せぬエラーが発生しました: {e}"
 
-    # To keep the branch selection form populated, we need to fetch branches again or pass them.
-    # For simplicity, let's assume if we are showing commits, branches were already fetched and are available
-    # in the context that called this, or we re-fetch them.
-    # However, commits_for_branch is called via POST from the branch selection form.
-    # The 'branches' list used to populate that form isn't directly available here unless we re-fetch or pass it.
-    # The simplest way for this structure is to re-fetch branches if we need them displayed alongside commits.
-    # Let's try to pass 'branches' from the initial fetch if possible, or re-fetch.
-    # For now, the template change handles showing the selector; this route focuses on commits.
-    # The `index` route will handle providing `branches` for the initial display and re-display.
-    # When commits_for_branch is called, it will render index.html. We need to ensure 'branches' is also passed then.
-
-    # Re-fetch branches to display the dropdown again alongside commits
-    # This is not ideal for performance but simplest for state management here.
-    # A better way might be to store branches in session or pass them through hidden fields if substantial.
     fetched_branches = []
-    if repo_url: # Only try to fetch if repo_url is present
+    if repo_url:
         try:
             parts_b = repo_url.strip('/').split('/')
             user_b, repo_b = parts_b[-2], parts_b[-1]
@@ -228,25 +210,23 @@ def commits_for_branch():
             if pat:
                 headers_b['Authorization'] = f'token {pat}'
             response_b = requests.get(api_url_b, headers=headers_b)
-            response_b.raise_for_status() # Important to handle errors for this fetch too
+            response_b.raise_for_status()
             for branch_data in response_b.json():
                 fetched_branches.append({
                     'name': branch_data['name'],
                     'sha': branch_data['commit']['sha']
                 })
         except Exception as e_b:
-            # If fetching branches again fails, we might lose the dropdown.
-            # Log this error, but don't let it necessarily overwrite the primary error of fetching commits.
-            print(f"Secondary error fetching branches in commits_for_branch: {e_b}")
-            if not error: # If no primary error yet, this can become the error
-                 error = "Could not re-fetch branches to display selector. Commit list may be accurate."
+            print(f"commits_for_branchでのブランチ再取得エラー: {e_b}")
+            if not error:
+                 error = "ブランチセレクタを表示するためにブランチを再取得できませんでした。コミットリストは正確な場合があります。"
 
 
     return render_template('index.html',
                            repo_url=repo_url,
                            selected_branch_name=branch_name,
                            commits=commits,
-                           branches=fetched_branches, # Pass fetched branches
+                           branches=fetched_branches,
                            error=error,
                            pat=pat)
 
@@ -270,13 +250,13 @@ def select_commit():
     error = None
 
     if not repo_url or not commit_sha:
-        error = "Repository URL or Commit SHA missing."
+        error = "リポジトリURLまたはコミットSHAがありません。"
         return render_template('index.html', error=error, repo_url=repo_url, selected_branch_name=branch_name, pat=pat)
 
     try:
         parts = repo_url.strip('/').split('/')
         if len(parts) < 2:
-            raise ValueError("Invalid GitHub repository URL format.")
+            raise ValueError("無効なGitHubリポジトリURL形式です。")
         user, repo = parts[-2], parts[-1]
 
         api_url = f"https://api.github.com/repos/{user}/{repo}/commits/{commit_sha}"
@@ -291,9 +271,9 @@ def select_commit():
         current_file_list_for_suggestion = []
         if 'files' in commit_data:
              for file_info in commit_data['files']:
-                current_file_list_for_suggestion.append(file_info['filename']) # Used by suggest_files_to_ignore
+                current_file_list_for_suggestion.append(file_info['filename'])
 
-        for file_info in commit_data.get('files', []): # Use .get for safety
+        for file_info in commit_data.get('files', []):
             is_suggested, reason = suggest_files_to_ignore(file_info['filename'], current_file_list_for_suggestion)
             files.append({
                 'filename': file_info['filename'],
@@ -302,11 +282,10 @@ def select_commit():
                 'suggestion_reason': reason
             })
 
-        # Fallback if 'files' isn't in commit_data (e.g. merge commits sometimes don't list files this way)
         if not files and 'commit' in commit_data and 'tree' in commit_data['commit']:
             tree_sha = commit_data['commit']['tree']['sha']
             tree_api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/{tree_sha}?recursive=1"
-            tree_response = requests.get(tree_api_url, headers=headers) # Use headers with PAT here too
+            tree_response = requests.get(tree_api_url, headers=headers)
             tree_response.raise_for_status()
             tree_data = tree_response.json()
 
@@ -318,7 +297,7 @@ def select_commit():
                         is_suggested, reason = suggest_files_to_ignore(item['path'], current_tree_paths)
                         files.append({
                             'filename': item['path'],
-                            'status': 'unknown',
+                            'status': '不明',
                             'is_suggested_to_ignore': is_suggested,
                             'suggestion_reason': reason
                         })
@@ -326,17 +305,17 @@ def select_commit():
         error = str(ve)
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
-            error = "Commit details not found. Check URL/SHA. If private, ensure PAT is valid."
+            error = "コミット詳細が見つかりません。URL/SHAを確認してください。プライベートの場合は、PATが有効であることを確認してください。"
         elif e.response.status_code == 401:
-            error = "Authentication failed for fetching commit details. PAT may be invalid."
+            error = "コミット詳細取得時の認証に失敗しました。PATが無効である可能性があります。"
         elif e.response.status_code == 403:
-            error = "Access forbidden for fetching commit details. PAT may lack permissions or rate limit hit."
+            error = "コミット詳細取得時のアクセスが禁止されています。PATに権限がないか、レート制限に達した可能性があります。"
         else:
-            error = f"Error fetching commit details ({e.response.status_code}): {e}"
+            error = f"コミット詳細取得エラー ({e.response.status_code}): {e}"
     except requests.exceptions.RequestException as e:
-        error = f"Network error fetching commit details: {e}"
+        error = f"コミット詳細取得時のネットワークエラー: {e}"
     except Exception as e:
-        error = f"An unexpected error occurred while fetching files: {e}"
+        error = f"ファイル取得中に予期せぬエラーが発生しました: {e}"
 
     return render_template('commit_files.html',
                            repo_url=repo_url,
@@ -351,16 +330,14 @@ def process_files():
     repo_url = request.form.get('repo_url')
     commit_sha = request.form.get('commit_sha')
     branch_name = request.form.get('branch_name')
-    pat = request.form.get('pat') # Get PAT
+    pat = request.form.get('pat')
     selected_files = request.form.getlist('selected_files')
 
     if not repo_url or not commit_sha:
-        return "Error: Missing repository URL or commit SHA.", 400
+        return "エラー: リポジトリURLまたはコミットSHAがありません。", 400
 
     commit_files_for_template = []
     if not selected_files:
-        # Re-fetch files for the template if none selected (simplified)
-        # This part should also use PAT if available for private repos
         try:
             parts = repo_url.strip('/').split('/')
             user, repo = parts[-2], parts[-1]
@@ -386,7 +363,7 @@ def process_files():
                     'suggestion_reason': reason
                     })
 
-            if not commit_files_for_template and 'commit' in commit_data and 'tree' in commit_data['commit']: # Fallback
+            if not commit_files_for_template and 'commit' in commit_data and 'tree' in commit_data['commit']:
                 tree_sha = commit_data['commit']['tree']['sha']
                 tree_api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/{tree_sha}?recursive=1"
                 tree_response = requests.get(tree_api_url, headers=headers)
@@ -399,15 +376,14 @@ def process_files():
                             is_suggested, reason = suggest_files_to_ignore(item['path'], current_tree_paths)
                             commit_files_for_template.append({
                                 'filename': item['path'],
-                                'status': 'unknown',
+                                'status': '不明',
                                 'is_suggested_to_ignore': is_suggested,
                                 'suggestion_reason': reason
                                 })
         except Exception as e:
-            # Log error e
             pass
 
-        error_message = "No files were selected. Please select at least one file."
+        error_message = "ファイルが選択されていません。少なくとも1つのファイルを選択してください。"
         return render_template('commit_files.html',
                                repo_url=repo_url,
                                commit_sha=commit_sha,
@@ -515,21 +491,22 @@ def process_files():
             f"git remote add origin {repo_url}\n"
             f"#    You can verify with: git remote -v\n\n"
             f"# 4. Ensure you have git-filter-repo installed (e.g., pip install git-filter-repo).\n\n"
-            f"# 5. Run git filter-repo to remove the selected files from all of history:\n"
-            f"#    (This command removes the files entirely. Use with extreme caution!)\n"
-            f"git filter-repo --invert-paths {filter_repo_paths_options}\n\n"
-            f"# 6. Inspect your repository to ensure the changes are correct.\n"
-            f"#    For example, check commit history and file contents.\n\n"
-            f"# 7. If satisfied, force push the changes to your 'origin' remote:\n"
-            f"#    WARNING: This overwrites history on the remote. Ensure all collaborators are aware.\n"
-            f"git push origin --force --all\n"
-            f"git push origin --force --tags\n\n"
+            f"# 5. Run git filter-repo to remove the selected files from the history of branch '{branch_name}':\n"
+            f"#    (This command removes the files. Use with extreme caution!)\n"
+            f"git filter-repo --refs {branch_name} --invert-paths {filter_repo_paths_options}\n\n"
+            f"# 6. Inspect your repository and branch '{branch_name}' to ensure the changes are correct.\n"
+            f"#    For example, check commit history and file contents for this branch.\n\n"
+            f"# 7. If satisfied, force push the changes for branch '{branch_name}' to your 'origin' remote:\n"
+            f"#    WARNING: This overwrites history on the remote for branch '{branch_name}'.\n"
+            f"#    Ensure all collaborators using this branch are aware.\n"
+            f"git push origin --force {branch_name}\n\n"
             f"# IMPORTANT NOTES:\n"
             f"# - ALWAYS BACKUP YOUR ORIGINAL REPOSITORY BEFORE PERFORMING THESE ACTIONS.\n"
-            f"# - The commit SHA ({commit_sha[:7]}) you initially selected was on branch '{branch_name}'.\n"
-            f"#   The command above cleans history across ALL branches and tags.\n"
-            f"# - If you only want to remove files from a specific commit or range, \n"
-            f"#   `git filter-repo` has more advanced options, or consider an interactive rebase (`git rebase -i`)."
+            f"# - This command targets ONLY the branch '{branch_name}'. The files will remain in the history of other branches.\n"
+            f"# - If other branches were created from '{branch_name}' *before* this cleaning, they will still contain the files.\n"
+            f"# - Merging this cleaned branch into other un-cleaned branches later might reintroduce the files or cause conflicts.\n"
+            f"# - To remove files from ALL history, remove `--refs {branch_name}` from the filter-repo command \n"
+            f"#   and use `git push origin --force --all` and `git push origin --force --tags` (after careful review)."
         )
 
     return render_template('results.html',

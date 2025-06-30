@@ -1,35 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Processing Results - GitHub Commit Cleaner</title>
+    <title>処理結果 - GitHubコミットクリーナー</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; text-align: center; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; }
-        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; text-decoration: none; display: inline-block; margin-top:10px; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; margin: 20px; background-color: #f8f9fa; color: #212529; line-height: 1.6; }
+        .container { background-color: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 900px; margin: 30px auto; }
+        h1, h2 { color: #343a40; text-align: center; margin-bottom: 1.5em; }
+        h1 { font-size: 2em; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #dee2e6; padding-bottom: 0.5em; margin-top: 1.8em;}
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #495057; }
+        button { background-color: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; transition: background-color 0.2s ease-in-out; text-decoration: none; display: inline-block; margin-top:10px; }
         button:hover { background-color: #0056b3; }
-        .results-section { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 4px; }
-        ul { list-style-type: disc; padding-left: 20px; }
-        li { margin-bottom: 5px; }
-        pre { background-color: #333; color: #fff; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }
-        .back-link { margin-bottom: 20px; display: inline-block; }
-        .info-box { padding: 15px; border: 1px solid #ccc; border-radius: 4px; margin-bottom:20px; background-color: #f9f9f9; }
+        .results-section { margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;}
+        .results-section p { margin-bottom: 0.8em; }
+        .results-section strong { color: #dc3545; } /* Warning text */
+        ul { list-style-type: disc; padding-left: 25px; margin-top: 0.5em;}
+        li { margin-bottom: 6px; }
+        pre { background-color: #e9ecef; color: #212529; padding: 15px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #ced4da; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 0.95em; line-height: 1.5; }
+        code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; }
+        .back-link { margin-bottom: 25px; display: inline-block; color: #007bff; text-decoration: none; font-weight: bold; }
+        .back-link:hover { text-decoration: underline; }
+        .info-box { padding: 20px; border: 1px solid #bee5eb; border-radius: 8px; margin-bottom:25px; background-color: #d1ecf1; color: #0c5460;}
+        .info-box h2 { border: none; text-align: left; font-size: 1.3em; margin-top:0; margin-bottom: 0.8em;}
+        .commit-info p { text-align: center; margin-bottom: 0.5em; color: #495057; }
+        .commit-info p strong { color: #343a40; }
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="{{ url_for('select_commit', repo_url=repo_url, commit_sha=commit_sha, branch_name=branch_name, pat=pat) }}" class="back-link">&laquo; Back to File Selection</a>
+        <a href="{{ url_for('select_commit', repo_url=repo_url, commit_sha=commit_sha, branch_name=branch_name, pat=pat) }}" class="back-link">&laquo; ファイル選択に戻る</a>
 
-        <h1>Processing Results</h1>
-        <p>Repository: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>
-        {% if branch_name %}<p>Branch: {{ branch_name }}</p>{% endif %}
-        <p>Commit: {{ commit_sha[:7] }}</p>
+        <h1>処理結果</h1>
+        <div class="commit-info">
+            <p>リポジトリ: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>
+            {% if branch_name %}<p>ブランチ: <strong>{{ branch_name }}</strong></p>{% endif %}
+            <p>コミット: <strong>{{ commit_sha[:7] }}</strong></p>
+        </div>
 
         <div class="info-box">
-            <h2>Selected Files for Processing:</h2>
+            <h2>処理対象として選択されたファイル:</h2>
             {% if selected_files %}
                 <ul>
                     {% for file in selected_files %}
@@ -37,34 +51,34 @@
                     {% endfor %}
                 </ul>
             {% else %}
-                <p>No files were selected.</p>
+                <p>ファイルは選択されませんでした。</p>
             {% endif %}
         </div>
 
         <div class="results-section">
-            <h2>Suggested .gitignore Entries:</h2>
+            <h2>提案された.gitignoreエントリ:</h2>
             {% if gitignore_entries %}
-                <p>Add these lines to your <code>.gitignore</code> file to prevent these files/patterns from being tracked in the future:</p>
+                <p>これらの行を<code>.gitignore</code>ファイルに追加して、これらのファイル/パターンが今後追跡されないようにします:</p>
                 <pre><code>{% for entry in gitignore_entries %}{{ entry }}
 {% endfor %}</code></pre>
             {% elif selected_files %}
-                <p>No specific .gitignore entries generated (e.g. selected files might not have common extensions or patterns were not derived).</p>
+                <p>特定の.gitignoreエントリは生成されませんでした (例: 選択されたファイルに共通の拡張子がないか、パターンが派生されなかった場合)。</p>
             {% else %}
-                <p>No files were selected to generate .gitignore entries.</p>
+                <p>.gitignoreエントリを生成するためにファイルが選択されませんでした。</p>
             {% endif %}
         </div>
 
         <div class="results-section">
-            <h2>Git Cleanup Commands (Using git filter-repo):</h2>
+            <h2>Gitクリーンアップコマンド (git filter-repoを使用):</h2>
             {% if cleanup_command %}
-                <p><strong>Warning:</strong> These commands will rewrite your repository's history. This is a destructive operation. <strong>ALWAYS backup your repository before proceeding.</strong></p>
-                <p>You will need to have <code>git filter-repo</code> installed (<code>pip install git-filter-repo</code>). These commands should typically be run in a fresh, mirrored clone of your repository.</p>
+                <p><strong>警告:</strong> これらのコマンドはリポジトリの履歴を書き換えます。これは破壊的な操作です。<strong>実行する前に必ずリポジトリをバックアップしてください。</strong></p>
+                <p><code>git filter-repo</code>がインストールされている必要があります (<code>pip install git-filter-repo</code>)。これらのコマンドは通常、リポジトリの新しいミラークローンで実行する必要があります。</p>
                 <pre><code>{{ cleanup_command }}</code></pre>
-                <p>After running these commands and verifying the results, you will need to force push to your remote repository (e.g., <code>git push origin --force --all</code> and <code>git push origin --force --tags</code>). This will overwrite the history on the remote, so ensure all collaborators are aware.</p>
+                <p>これらのコマンドを実行し、結果を確認した後、リモートリポジトリに強制プッシュする必要があります。これによりリモートの履歴が上書きされるため、すべての協力者が認識していることを確認してください。</p>
             {% elif selected_files %}
-                <p>Cleanup command generation failed or is not applicable for the selected files.</p>
+                <p>クリーンアップコマンドの生成に失敗したか、選択されたファイルには適用できません。</p>
             {% else %}
-                <p>No files were selected to generate cleanup commands.</p>
+                <p>クリーンアップコマンドを生成するためにファイルが選択されませんでした。</p>
             {% endif %}
         </div>
 
