@@ -97,6 +97,7 @@ def suggest_files_to_ignore(filename_with_path, file_infos):
 def index():
     error = None
     repo_url = request.form.get('repo_url') if request.method == 'POST' else request.args.get('repo_url', '')
+    pat = request.form.get('pat') if request.method == 'POST' else request.args.get('pat', '')
     branches = []
 
     if request.method == 'POST' and 'fetch_branches' in request.form:
@@ -110,103 +111,120 @@ def index():
 
                 user, repo = parts[-2], parts[-1]
                 api_url = f"https://api.github.com/repos/{user}/{repo}/branches"
-                # Add headers for GitHub API v3, especially if dealing with many branches or private repos (later)
-                # headers = {'Accept': 'application/vnd.github.v3+json'}
-                # response = requests.get(api_url, headers=headers)
-                response = requests.get(api_url)
+
+                headers = {'Accept': 'application/vnd.github.v3+json'}
+                if pat:
+                    headers['Authorization'] = f'token {pat}'
+
+                response = requests.get(api_url, headers=headers)
                 response.raise_for_status()
                 branches_data = response.json()
 
                 if not branches_data:
-                    error = "No branches found for this repository or repository is empty/invalid."
+                    error = "No branches found. Repository might be empty, URL invalid, or token lacks permissions for private repo."
 
                 for branch_data in branches_data:
                     branches.append({
                         'name': branch_data['name'],
-                        'sha': branch_data['commit']['sha'] # SHA of the commit the branch points to
+                        'sha': branch_data['commit']['sha']
                     })
 
             except ValueError as ve:
                 error = str(ve)
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    error = "Repository not found. Please check the URL."
+                    error = "Repository not found. Check URL. If private, ensure PAT is valid and has 'repo' scope."
+                elif e.response.status_code == 401:
+                    error = "Authentication failed. Provided PAT may be invalid or expired."
+                elif e.response.status_code == 403:
+                     error = "Access forbidden. PAT may lack necessary permissions (e.g. 'repo' scope) or you've hit a rate limit."
                 else:
-                    error = f"Error fetching branches: {e}"
+                    error = f"Error fetching branches ({e.response.status_code}): {e}"
             except requests.exceptions.RequestException as e:
-                error = f"Error fetching branches: {e}"
+                error = f"Network error fetching branches: {e}"
             except Exception as e:
                 error = f"An unexpected error occurred: {e}"
 
-    return render_template('index.html', error=error, repo_url=repo_url, branches=branches)
+    return render_template('index.html', error=error, repo_url=repo_url, branches=branches, pat=pat)
 
 
 @app.route('/commits_for_branch', methods=['GET', 'POST'])
 def commits_for_branch():
+    pat = ''
     if request.method == 'POST':
         repo_url = request.form.get('repo_url')
         branch_name = request.form.get('branch_name')
+        pat = request.form.get('pat')
     else: # GET request
         repo_url = request.args.get('repo_url')
         branch_name = request.args.get('branch_name')
+        pat = request.args.get('pat')
 
     commits = []
     error = None
 
     if not repo_url or not branch_name:
         error = "Repository URL and branch name are required."
-        # For GET, if params are missing, it might be better to redirect to index or show a clear error.
-        return render_template('index.html', error=error, repo_url=repo_url, branches=[]) # Ensure branches is passed if index expects it
+        return render_template('index.html', error=error, repo_url=repo_url, branches=[], pat=pat)
 
     try:
         parts = repo_url.strip('/').split('/')
         user, repo = parts[-2], parts[-1]
-        # GitHub API to get commits for a specific branch
         api_url = f"https://api.github.com/repos/{user}/{repo}/commits?sha={branch_name}"
-        response = requests.get(api_url)
+
+        headers = {'Accept': 'application/vnd.github.v3+json'}
+        if pat:
+            headers['Authorization'] = f'token {pat}'
+
+        response = requests.get(api_url, headers=headers)
         response.raise_for_status()
         commits_data = response.json()
 
-        for commit_data in commits_data[:30]: # Limit to 30 commits
+        for commit_data in commits_data[:30]:
             commits.append({
                 'sha': commit_data['sha'],
                 'message': commit_data['commit']['message'].splitlines()[0],
                 'author': commit_data['commit']['author']['name'],
                 'date': commit_data['commit']['author']['date']
             })
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            error = f"Commits not found for branch '{branch_name}'. Check repo/branch. If private, ensure PAT is valid."
+        elif e.response.status_code == 401:
+            error = "Authentication failed for fetching commits. PAT may be invalid."
+        elif e.response.status_code == 403:
+            error = "Access forbidden for fetching commits. PAT may lack permissions or rate limit hit."
+        else:
+            error = f"Error fetching commits ({e.response.status_code}): {e}"
     except requests.exceptions.RequestException as e:
-        error = f"Error fetching commits for branch {branch_name}: {e}"
+        error = f"Network error fetching commits: {e}"
     except Exception as e:
         error = f"An unexpected error occurred: {e}"
 
-    # We need a new template or modify index.html to show commits after branch selection
-    # For now, let's reuse parts of index.html logic by passing commits list.
-    # This means index.html needs to be able to handle displaying commits OR branches.
-    return render_template('index.html', repo_url=repo_url, selected_branch_name=branch_name, commits=commits, error=error)
+    return render_template('index.html', repo_url=repo_url, selected_branch_name=branch_name, commits=commits, error=error, pat=pat)
 
 
 @app.route('/select_commit', methods=['GET', 'POST'])
 def select_commit():
     branch_name = None
+    pat = ''
     if request.method == 'POST':
         repo_url = request.form.get('repo_url')
         commit_sha = request.form.get('commit_sha')
-        branch_name = request.form.get('branch_name') # Get branch name from form
+        branch_name = request.form.get('branch_name')
+        pat = request.form.get('pat')
     else: # GET request
         repo_url = request.args.get('repo_url')
         commit_sha = request.args.get('commit_sha')
-        branch_name = request.args.get('branch_name') # Get branch name from args
+        branch_name = request.args.get('branch_name')
+        pat = request.args.get('pat')
 
     files = []
     error = None
 
     if not repo_url or not commit_sha:
         error = "Repository URL or Commit SHA missing."
-        return render_template('index.html', error=error, repo_url=repo_url, selected_branch_name=branch_name)
-
-    # It's good practice to also check for branch_name if it's essential for the API calls,
-    # though commit SHA is usually unique across branches for fetching commit details.
-    # However, for context (like the "back" button), it's good to keep it.
+        return render_template('index.html', error=error, repo_url=repo_url, selected_branch_name=branch_name, pat=pat)
 
     try:
         parts = repo_url.strip('/').split('/')
@@ -214,34 +232,43 @@ def select_commit():
             raise ValueError("Invalid GitHub repository URL format.")
         user, repo = parts[-2], parts[-1]
 
-        # GitHub API endpoint to get a specific commit, which includes file list
         api_url = f"https://api.github.com/repos/{user}/{repo}/commits/{commit_sha}"
-        response = requests.get(api_url)
+        headers = {'Accept': 'application/vnd.github.v3+json'}
+        if pat:
+            headers['Authorization'] = f'token {pat}'
+
+        response = requests.get(api_url, headers=headers)
         response.raise_for_status()
         commit_data = response.json()
 
+        current_file_list_for_suggestion = []
         if 'files' in commit_data:
-            for file_info in commit_data['files']:
-                is_suggested, reason = suggest_files_to_ignore(file_info['filename'], commit_data['files'])
-                files.append({
-                    'filename': file_info['filename'],
-                    'status': file_info['status'],
-                    'is_suggested_to_ignore': is_suggested,
-                    'suggestion_reason': reason
-                })
-        else: # Fallback for commits where 'files' might not be directly available (e.g. very old commits or merge commits without file changes listed directly)
+             for file_info in commit_data['files']:
+                current_file_list_for_suggestion.append(file_info['filename']) # Used by suggest_files_to_ignore
+
+        for file_info in commit_data.get('files', []): # Use .get for safety
+            is_suggested, reason = suggest_files_to_ignore(file_info['filename'], current_file_list_for_suggestion)
+            files.append({
+                'filename': file_info['filename'],
+                'status': file_info['status'],
+                'is_suggested_to_ignore': is_suggested,
+                'suggestion_reason': reason
+            })
+
+        # Fallback if 'files' isn't in commit_data (e.g. merge commits sometimes don't list files this way)
+        if not files and 'commit' in commit_data and 'tree' in commit_data['commit']:
             tree_sha = commit_data['commit']['tree']['sha']
             tree_api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/{tree_sha}?recursive=1"
-            tree_response = requests.get(tree_api_url)
+            tree_response = requests.get(tree_api_url, headers=headers) # Use headers with PAT here too
             tree_response.raise_for_status()
             tree_data = tree_response.json()
+
+            current_tree_paths = [item['path'] for item in tree_data.get('tree', []) if item['type'] == 'blob']
+
             if 'tree' in tree_data:
-                # Note: tree_data['tree'] might contain directories as well.
-                # suggest_files_to_ignore needs to handle this.
-                # The 'status' isn't available here, defaults to 'unknown'.
                 for item in tree_data['tree']:
-                    if item['type'] == 'blob': # Only process files (blobs)
-                        is_suggested, reason = suggest_files_to_ignore(item['path'], tree_data['tree'])
+                    if item['type'] == 'blob':
+                        is_suggested, reason = suggest_files_to_ignore(item['path'], current_tree_paths)
                         files.append({
                             'filename': item['path'],
                             'status': 'unknown',
@@ -250,68 +277,98 @@ def select_commit():
                         })
     except ValueError as ve:
         error = str(ve)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            error = "Commit details not found. Check URL/SHA. If private, ensure PAT is valid."
+        elif e.response.status_code == 401:
+            error = "Authentication failed for fetching commit details. PAT may be invalid."
+        elif e.response.status_code == 403:
+            error = "Access forbidden for fetching commit details. PAT may lack permissions or rate limit hit."
+        else:
+            error = f"Error fetching commit details ({e.response.status_code}): {e}"
     except requests.exceptions.RequestException as e:
-        error = f"Error fetching commit details: {e}"
+        error = f"Network error fetching commit details: {e}"
     except Exception as e:
         error = f"An unexpected error occurred while fetching files: {e}"
 
-    # For now, we'll pass repo_url and commit_sha to a new template or extend index.html
-    # This will be refined in subsequent steps to show files and allow selection.
     return render_template('commit_files.html',
                            repo_url=repo_url,
                            commit_sha=commit_sha,
                            files=files,
                            error=error,
-                           branch_name=branch_name) # Pass branch_name to template
+                           branch_name=branch_name,
+                           pat=pat)
 
 @app.route('/process_files', methods=['POST'])
 def process_files():
     repo_url = request.form.get('repo_url')
     commit_sha = request.form.get('commit_sha')
-    branch_name = request.form.get('branch_name') # Get branch name
+    branch_name = request.form.get('branch_name')
+    pat = request.form.get('pat') # Get PAT
     selected_files = request.form.getlist('selected_files')
 
     if not repo_url or not commit_sha:
-        # Handle error, maybe redirect to index or show an error message
         return "Error: Missing repository URL or commit SHA.", 400
 
-    # Fetch file list again for re-rendering if no files selected.
-    # This is a simplified re-fetch. A more robust app might pass files list through session or hidden form fields.
     commit_files_for_template = []
     if not selected_files:
+        # Re-fetch files for the template if none selected (simplified)
+        # This part should also use PAT if available for private repos
         try:
             parts = repo_url.strip('/').split('/')
             user, repo = parts[-2], parts[-1]
             api_url = f"https://api.github.com/repos/{user}/{repo}/commits/{commit_sha}"
-            response = requests.get(api_url)
+            headers = {'Accept': 'application/vnd.github.v3+json'}
+            if pat:
+                headers['Authorization'] = f'token {pat}'
+            response = requests.get(api_url, headers=headers)
             response.raise_for_status()
             commit_data = response.json()
+
+            current_file_list_for_suggestion = []
             if 'files' in commit_data:
-                for file_info in commit_data['files']:
-                    commit_files_for_template.append({'filename': file_info['filename'], 'status': file_info['status']})
-            else: # Fallback for older commits or different structures
+                 for file_info in commit_data['files']:
+                    current_file_list_for_suggestion.append(file_info['filename'])
+
+            for file_info in commit_data.get('files', []):
+                is_suggested, reason = suggest_files_to_ignore(file_info['filename'], current_file_list_for_suggestion)
+                commit_files_for_template.append({
+                    'filename': file_info['filename'],
+                    'status': file_info['status'],
+                    'is_suggested_to_ignore': is_suggested,
+                    'suggestion_reason': reason
+                    })
+
+            if not commit_files_for_template and 'commit' in commit_data and 'tree' in commit_data['commit']: # Fallback
                 tree_sha = commit_data['commit']['tree']['sha']
                 tree_api_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/{tree_sha}?recursive=1"
-                tree_response = requests.get(tree_api_url)
+                tree_response = requests.get(tree_api_url, headers=headers)
                 tree_response.raise_for_status()
                 tree_data = tree_response.json()
+                current_tree_paths = [item['path'] for item in tree_data.get('tree', []) if item['type'] == 'blob']
                 if 'tree' in tree_data:
                     for item in tree_data['tree']:
                         if item['type'] == 'blob':
-                             commit_files_for_template.append({'filename': item['path'], 'status': 'unknown'})
-        except Exception:
-            # If re-fetching files fails, pass an empty list and let the template handle it.
+                            is_suggested, reason = suggest_files_to_ignore(item['path'], current_tree_paths)
+                            commit_files_for_template.append({
+                                'filename': item['path'],
+                                'status': 'unknown',
+                                'is_suggested_to_ignore': is_suggested,
+                                'suggestion_reason': reason
+                                })
+        except Exception as e:
+            # Log error e
             pass
 
         error_message = "No files were selected. Please select at least one file."
         return render_template('commit_files.html',
                                repo_url=repo_url,
                                commit_sha=commit_sha,
-                               files=commit_files_for_template, # Pass the fetched files
+                               files=commit_files_for_template,
                                error=error_message,
-                               branch_name=branch_name) # Pass branch_name back
+                               branch_name=branch_name,
+                               pat=pat)
 
-    # Generate .gitignore entries
     gitignore_entries = []
     if selected_files:
         for file_path in selected_files:
@@ -321,7 +378,6 @@ def process_files():
                 if ext and not f"*.{ext}" in gitignore_entries:
                     gitignore_entries.append(f"*.{ext}")
 
-    # Generate cleanup command
     cleanup_command = ""
     if selected_files:
         filter_repo_paths_options = " ".join([f"--path \"{file}\"" for file in selected_files])
@@ -360,7 +416,8 @@ def process_files():
                            selected_files=selected_files,
                            gitignore_entries=gitignore_entries,
                            cleanup_command=cleanup_command,
-                           branch_name=branch_name) # Pass branch_name to results
+                           branch_name=branch_name,
+                           pat=pat)
 
 
 if __name__ == '__main__':

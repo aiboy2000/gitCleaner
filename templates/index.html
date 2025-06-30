@@ -22,8 +22,15 @@
     <div class="container">
         <h1>GitHub Commit Cleaner</h1>
         <form method="POST" action="{{ url_for('index') }}">
-            <label for="repo_url">GitHub Repository URL:</label>
-            <input type="url" id="repo_url" name="repo_url" required placeholder="e.g., https://github.com/user/repo" value="{{ repo_url if repo_url }}">
+            <div class="form-group">
+                <label for="repo_url">GitHub Repository URL:</label>
+                <input type="url" id="repo_url" name="repo_url" required placeholder="e.g., https://github.com/user/repo" value="{{ repo_url if repo_url }}">
+            </div>
+            <div class="form-group">
+                <label for="pat">GitHub Personal Access Token (Optional for private repos):</label>
+                <input type="password" id="pat" name="pat" placeholder="Requires 'repo' scope for private repos" value="{{ pat if pat }}">
+                <small>Your PAT is used for API requests and not stored. Handle with care.</small>
+            </div>
             <input type="submit" name="fetch_branches" value="Fetch Branches">
         </form>
 
@@ -36,6 +43,7 @@
             <h2>Select a Branch:</h2>
             <form method="POST" action="{{ url_for('commits_for_branch') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
+                <input type="hidden" name="pat" value="{{ pat }}"> {# Pass PAT #}
                 <label for="branch_name">Branch:</label>
                 <select name="branch_name" id="branch_name" required>
                     <option value="">-- Select a Branch --</option>
@@ -53,7 +61,8 @@
             <h2>Commits for branch '{{ selected_branch_name }}' (Latest 30)</h2>
             <form method="POST" action="{{ url_for('select_commit') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
-                <input type="hidden" name="branch_name" value="{{ selected_branch_name }}"> {# Pass branch name along #}
+                <input type="hidden" name="branch_name" value="{{ selected_branch_name }}">
+                <input type="hidden" name="pat" value="{{ pat }}"> {# Pass PAT #}
                 <ul>
                     {% for commit in commits %}
                     <li>
