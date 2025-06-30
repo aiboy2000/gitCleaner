@@ -21,7 +21,7 @@
 </head>
 <body>
     <div class="container">
-        <a href="{{ url_for('select_commit', repo_url=repo_url, commit_sha=commit_sha, _method='POST') }}" class="back-link">&laquo; Back to File Selection</a>
+        <a href="{{ url_for('select_commit', repo_url=repo_url, commit_sha=commit_sha) }}" class="back-link">&laquo; Back to File Selection</a>
 
         <h1>Processing Results</h1>
         <p>Repository: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>

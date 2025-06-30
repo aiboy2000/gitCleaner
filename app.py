@@ -39,16 +39,22 @@ def index():
 
     return render_template('index.html', commits=commits, error=error, repo_url=repo_url)
 
-@app.route('/select_commit', methods=['POST'])
+@app.route('/select_commit', methods=['GET', 'POST'])
 def select_commit():
-    repo_url = request.form.get('repo_url')
-    commit_sha = request.form.get('commit_sha')
+    if request.method == 'POST':
+        repo_url = request.form.get('repo_url')
+        commit_sha = request.form.get('commit_sha')
+    else: # GET request
+        repo_url = request.args.get('repo_url')
+        commit_sha = request.args.get('commit_sha')
+
     files = []
     error = None
 
     if not repo_url or not commit_sha:
         error = "Repository URL or Commit SHA missing."
-        return render_template('index.html', error=error) # Or a dedicated error page
+        # For GET, redirecting to index might be better if params are missing
+        return render_template('index.html', error=error, repo_url=repo_url)
 
     try:
         parts = repo_url.strip('/').split('/')
