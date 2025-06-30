@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Results - GitHub Commit Cleaner</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; text-align: center; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; text-decoration: none; display: inline-block; margin-top:10px; }
+        button:hover { background-color: #0056b3; }
+        .results-section { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 4px; }
+        ul { list-style-type: disc; padding-left: 20px; }
+        li { margin-bottom: 5px; }
+        pre { background-color: #333; color: #fff; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }
+        .back-link { margin-bottom: 20px; display: inline-block; }
+        .info-box { padding: 15px; border: 1px solid #ccc; border-radius: 4px; margin-bottom:20px; background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('select_commit', repo_url=repo_url, commit_sha=commit_sha, _method='POST') }}" class="back-link">&laquo; Back to File Selection</a>
+
+        <h1>Processing Results</h1>
+        <p>Repository: <a href="{{ repo_url }}" target="_blank">{{ repo_url }}</a></p>
+        <p>Commit: {{ commit_sha[:7] }}</p>
+
+        <div class="info-box">
+            <h2>Selected Files for Processing:</h2>
+            {% if selected_files %}
+                <ul>
+                    {% for file in selected_files %}
+                        <li>{{ file }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No files were selected.</p>
+            {% endif %}
+        </div>
+
+        <div class="results-section">
+            <h2>Suggested .gitignore Entries:</h2>
+            {% if gitignore_entries %}
+                <p>Add these lines to your <code>.gitignore</code> file to prevent these files/patterns from being tracked in the future:</p>
+                <pre><code>{% for entry in gitignore_entries %}{{ entry }}
+{% endfor %}</code></pre>
+            {% elif selected_files %}
+                <p>No specific .gitignore entries generated (e.g. selected files might not have common extensions or patterns were not derived).</p>
+            {% else %}
+                <p>No files were selected to generate .gitignore entries.</p>
+            {% endif %}
+        </div>
+
+        <div class="results-section">
+            <h2>Git Cleanup Commands (Using git filter-repo):</h2>
+            {% if cleanup_command %}
+                <p><strong>Warning:</strong> These commands will rewrite your repository's history. This is a destructive operation. <strong>ALWAYS backup your repository before proceeding.</strong></p>
+                <p>You will need to have <code>git filter-repo</code> installed (<code>pip install git-filter-repo</code>). These commands should typically be run in a fresh, mirrored clone of your repository.</p>
+                <pre><code>{{ cleanup_command }}</code></pre>
+                <p>After running these commands and verifying the results, you will need to force push to your remote repository (e.g., <code>git push origin --force --all</code> and <code>git push origin --force --tags</code>). This will overwrite the history on the remote, so ensure all collaborators are aware.</p>
+            {% elif selected_files %}
+                <p>Cleanup command generation failed or is not applicable for the selected files.</p>
+            {% else %}
+                <p>No files were selected to generate cleanup commands.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</body>
+</html>
