@@ -175,17 +175,54 @@ def commits_for_branch():
         if pat:
             headers['Authorization'] = f'token {pat}'
 
-        response = requests.get(api_url, headers=headers)
-        response.raise_for_status()
-        commits_data = response.json()
 
-        for commit_data in commits_data[:30]:
-            commits.append({
-                'sha': commit_data['sha'],
-                'message': commit_data['commit']['message'].splitlines()[0],
-                'author': commit_data['commit']['author']['name'],
-                'date': commit_data['commit']['author']['date']
-            })
+        headers = {'Accept': 'application/vnd.github.v3+json'}
+        if pat:
+            headers['Authorization'] = f'token {pat}'
+
+        # Max commits to fetch to prevent extremely long loads
+        MAX_COMMITS_TO_FETCH = 500
+        page_url = api_url # Start with the first page URL
+        commit_count_status_message = ""
+
+        while page_url and len(commits) < MAX_COMMITS_TO_FETCH:
+            response = requests.get(page_url, headers=headers)
+            response.raise_for_status()
+            current_page_commits_data = response.json()
+
+            if not current_page_commits_data: # No more commits on this page or empty response
+                break
+
+            for commit_data in current_page_commits_data:
+                if len(commits) >= MAX_COMMITS_TO_FETCH:
+                    commit_count_status_message = f"表示するコミットが多すぎるため、最新{MAX_COMMITS_TO_FETCH}件のみ表示しています。"
+                    break
+                commits.append({
+                    'sha': commit_data['sha'],
+                    'message': commit_data['commit']['message'].splitlines()[0],
+                    'author': commit_data['commit']['author']['name'],
+                    'date': commit_data['commit']['author']['date']
+                })
+
+            if len(commits) >= MAX_COMMITS_TO_FETCH: # Check again after appending
+                break
+
+            # Get next page URL from Link header
+            if 'Link' in response.headers:
+                links = requests.utils.parse_header_links(response.headers['Link'])
+                next_url = None
+                for link in links:
+                    if link.get('rel') == 'next':
+                        next_url = link.get('url')
+                        break
+                page_url = next_url
+            else: # No Link header, means no more pages
+                page_url = None
+
+        if not commits and not error : # If after all pagination, still no commits
+             error = f"ブランチ '{branch_name}' にコミットが見つかりませんでした。"
+
+
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
             error = f"ブランチ '{branch_name}' のコミットが見つかりません。リポジトリ/ブランチを確認してください。プライベートの場合は、PATが有効であることを確認してください。"
@@ -228,7 +265,8 @@ def commits_for_branch():
                            commits=commits,
                            branches=fetched_branches,
                            error=error,
-                           pat=pat)
+                           pat=pat,
+                           commit_count_status_message=commit_count_status_message)
 
 
 @app.route('/select_commit', methods=['GET', 'POST'])

@@ -76,7 +76,10 @@
 
         {% if commits %}
         <div class="results-section" id="commit-list-section">
-            <h2>ブランチ '{{ selected_branch_name }}' のコミット (最新30件)</h2>
+            <h2>ブランチ '{{ selected_branch_name }}' のコミット {% if commits %}({{ commits|length }}件表示{% if commit_count_status_message %} - {{ commit_count_status_message }}{% endif %}){% endif %}</h2>
+            {% if commit_count_status_message and not error %}
+                <p class="info-message" style="text-align:center; color: #17a2b8; background-color: #e2f3f5; padding: 8px; border-radius: 4px; margin-bottom:10px;">{{ commit_count_status_message }}</p>
+            {% endif %}
             <form method="POST" action="{{ url_for('select_commit') }}">
                 <input type="hidden" name="repo_url" value="{{ repo_url }}">
                 <input type="hidden" name="branch_name" value="{{ selected_branch_name }}">
